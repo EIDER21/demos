@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pac-Man</title>
+    <style>
+ 
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #222;
+            color: white;
+        }
+
+        #gameCanvas {
+            border: 2px solid #ffcc00;
+            background-color: black;
+            margin-top: 20px;
+        }
+
+        #header {
+            display: flex;
+            justify-content: space-between;
+            width: 80%;
+            margin: 10px 0;
+        }
+
+        #currentScore {
+            font-size: 24px;
+            color: #ffcc00;
+        }
+
+        #scoreboard {
+            background-color: #333;
+            padding: 10px;
+            border-radius: 8px;
+            width: 250px;
+        }
+
+        #scoreboard h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        #scores {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            color: white;
+        }
+
+        #scores li {
+            padding: 5px 0;
+            font-size: 18px;
+        }
+
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #messageBox {
+            background-color: #333;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+        }
+
+        #messageBox p {
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+
+        #closeMessage {
+            background-color: #ffcc00;
+            border: none;
+            color: black;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #closeMessage:hover {
+            background-color: #ffaa00;
+        }
+        
+        #controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .controlButton {
+            background-color: #ffcc00;
+            border: none;
+            border-radius: 5px;
+            padding: 15px;
+            cursor: pointer;
+            font-size: 18px;
+            color: black;
+        }
+
+        .controlButton:hover {
+            background-color: #ffaa00;
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <div id="currentScore">Puntaje: 0</div>
+        <div id="scoreboard">
+            <h2>Puntaje más alto</h2>
+            <ul id="scores"></ul>
+        </div>
+    </div>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <div id="controls">
+        <button class="controlButton" id="up">↑</button>
+        <div>
+            <button class="controlButton" id="left">←</button>
+            <button class="controlButton" id="right">→</button>
+        </div>
+        <button class="controlButton" id="down">↓</button>
+    </div>
+    <div id="overlay">
+        <div id="messageBox">
+            <p id="message"></p>
+            <button id="closeMessage">Volver a intentar</button>
+        </div>
+    </div>
+    <script>
+        const controls = {
+            up: document.getElementById('up'),
+            down: document.getElementById('down'),
+            left: document.getElementById('left'),
+            right: document.getElementById('right')
+        };
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const overlay = document.getElementById('overlay');
+        const messageBox = document.getElementById('messageBox');
+        const closeMessageButton = document.getElementById('closeMessage');
+        const currentScoreDisplay = document.getElementById('currentScore');
+        const scoresList = document.getElementById('scores');
+
+        let pacman = { x: 1, y: 1, dx: 0, dy: 0, speed: 10 };
+        let food = { x: 10, y: 10 };
+        let enemies = [
+            { x: 15, y: 15, dx: 1, dy: 0 },
+            { x: 5, y: 5, dx: 0, dy: 1 }
+        ];
+        let frameCount = 0;
+        let gameRunning = true;
+        let currentScore = 0;
+        let highScores = [];
+
+        function showMessage(text) {
+            gameRunning = false;
+            messageBox.querySelector('p').textContent = text;
+            overlay.style.display = 'flex';
+        }
+
+        closeMessageButton.addEventListener('click', restartGame);
+
+        function drawGrid() {
+            ctx.strokeStyle = '#333';
+            for (let i = 0; i < canvas.width; i += 20) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+            }
+            for (let j = 0; j < canvas.height; j += 20) {
+                ctx.beginPath();
+                ctx.moveTo(0, j);
+                ctx.lineTo(canvas.width, j);
+                ctx.stroke();
+            }
+        }
+
+       
+function drawPacman() {
+    ctx.fillStyle = 'yellow';
+    let startAngle, endAngle;
+
+    // Determinar el ángulo de la boca según la dirección de movimiento
+    if (pacman.dx === 0 && pacman.dy === -1) {
+        // Arriba: la boca se abre hacia arriba
+       startAngle = 1.7 * Math.PI;
+        endAngle = 3.3 * Math.PI;
+    } else if (pacman.dx === 0 && pacman.dy === 1) {
+        // Abajo: la boca se abre hacia abajo
+       startAngle = 0.7 * Math.PI;
+        endAngle = 2.3 * Math.PI;
+    } else if (pacman.dx === -1 && pacman.dy === 0) {
+        // Izquierda: la boca se abre hacia la izquierda
+       startAngle = 1.2 * Math.PI;
+        endAngle = 2.8 * Math.PI;
+    } else if (pacman.dx === 1 && pacman.dy === 0) {
+        // Derecha: la boca se abre hacia la derecha
+       startAngle = 0.2 * Math.PI;
+        endAngle = 1.8 * Math.PI;
+    } else {
+        // Si Pac-Man no se está moviendo (caso de estar quieto), mantenemos la boca cerrada.
+        startAngle = 0.2 * Math.PI;
+        endAngle = 1.8 * Math.PI;
+    }
+
+    // Dibujar Pac-Man con la boca orientada según el movimiento
+    ctx.beginPath();
+    ctx.arc(
+        pacman.x * 20 + 10, // Coordenada X del centro
+        pacman.y * 20 + 10, // Coordenada Y del centro
+        8, // Radio de Pac-Man
+        startAngle, // Ángulo de inicio
+        endAngle // Ángulo final
+    );
+    ctx.lineTo(pacman.x * 20 + 10, pacman.y * 20 + 10); // Cerrar la boca
+    ctx.fill();
+}
+
+
+
+
+
+
+
+
+
+        function drawFood() {
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(food.x * 20 + 10, food.y * 20 + 10, 5, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        function drawEnemies() {
+            enemies.forEach(enemy => {
+                const centerX = enemy.x * 20 + 10;
+                const centerY = enemy.y * 20 + 10;
+                ctx.fillStyle = 'blue';
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, 10, Math.PI, 0, false);
+                ctx.lineTo(centerX + 10, centerY + 10);
+                ctx.lineTo(centerX - 10, centerY + 10);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(centerX - 3, centerY - 2, 2, 0, 2 * Math.PI);
+                ctx.arc(centerX + 3, centerY - 2, 2, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+        }
+
+        function checkCollisionWithEnemies() {
+            enemies.forEach(enemy => {
+                if (pacman.x === enemy.x && pacman.y === enemy.y) {
+                    showMessage('¡Perdiste!, intenta otra vez');
+                }
+            });
+        }
+
+        function updatePacman() {
+            pacman.x += pacman.dx;
+            pacman.y += pacman.dy;
+
+            if (pacman.x < 0) pacman.x = canvas.width / 20 - 1;
+            if (pacman.y < 0) pacman.y = canvas.height / 20 - 1;
+            if (pacman.x >= canvas.width / 20) pacman.x = 0;
+            if (pacman.y >= canvas.height / 20) pacman.y = 0;
+
+            if (pacman.x === food.x && pacman.y === food.y) {
+                currentScore += 10;
+                currentScoreDisplay.textContent = `Puntaje: ${currentScore}`;
+                food = {
+                    x: Math.floor(Math.random() * (canvas.width / 20)),
+                    y: Math.floor(Math.random() * (canvas.height / 20)),
+                };
+                enemies.push({
+                    x: Math.floor(Math.random() * (canvas.width / 20)),
+                    y: Math.floor(Math.random() * (canvas.height / 20)),
+                    dx: Math.random() > 0.5 ? 1 : -1,
+                    dy: Math.random() > 0.5 ? 1 : -1,
+                });
+            }
+
+            checkCollisionWithEnemies();
+        }
+
+        function updateEnemies() {
+            enemies.forEach(enemy => {
+                enemy.x += enemy.dx;
+                enemy.y += enemy.dy;
+
+                if (enemy.x < 0 || enemy.x >= canvas.width / 20) enemy.dx *= -1;
+                if (enemy.y < 0 || enemy.y >= canvas.height / 20) enemy.dy *= -1;
+
+                checkCollisionWithEnemies();
+            });
+        }
+
+        // Función para actualizar el arreglo de highScores y mantener solo el puntaje más alto
+function updateHighScores() {
+    if (highScores.length < 1) {
+        highScores.push(currentScore);
+    } else if (currentScore > Math.min(...highScores)) {
+        highScores.push(currentScore);
+        highScores.sort((a, b) => b - a); // Ordenar de mayor a menor
+        highScores.pop(); 
+    }
+    updateScoreboard(); // Actualizar la visualización de la lista de puntajes altos
+}
+
+// Función para actualizar el scoreboard
+function updateScoreboard() {
+    scoresList.innerHTML = ''; // Limpiar la lista actual
+    highScores.forEach(score => {
+        const li = document.createElement('li');
+        li.textContent = score;
+        scoresList.appendChild(li);
+    });
+}
+
+// Mostrar el mensaje de "Perdiste" y actualizar los puntajes más altos
+function showMessage(text) {
+    gameRunning = false;
+    messageBox.querySelector('p').textContent = text;
+    overlay.style.display = 'flex';
+    updateHighScores(); // Actualizar la lista de puntajes más altos cuando el juego termine
+}
+
+
+        function restartGame() {
+            overlay.style.display = 'none';
+            currentScore = 0;
+            currentScoreDisplay.textContent = `Puntaje: ${currentScore}`;
+            pacman = { x: 1, y: 1, dx: 0, dy: 0, speed: 10 };
+            food = { x: 10, y: 10 };
+            enemies = [{ x: 15, y: 15, dx: 1, dy: 0 }];
+            gameRunning = true;
+            gameLoop();
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            drawPacman();
+            drawFood();
+            drawEnemies();
+
+            if (frameCount % 15 === 0) updatePacman();
+            if (frameCount % 30 === 0) updateEnemies();
+
+            frameCount++;
+            requestAnimationFrame(gameLoop);
+        }
+
+
+
+
+
+
+
+
+
+
+        
+
+        window.addEventListener('keydown', e => {
+            if (e.key === 'ArrowUp') { pacman.dx = 0; pacman.dy = -1; }
+            if (e.key === 'ArrowDown') { pacman.dx = 0; pacman.dy = 1; }
+            if (e.key === 'ArrowLeft') { pacman.dx = -1; pacman.dy = 0; }
+            if (e.key === 'ArrowRight') { pacman.dx = 1; pacman.dy = 0; }
+        });
+
+        controls.up.addEventListener('click', () => { pacman.dx = 0; pacman.dy = -1; });
+        controls.down.addEventListener('click', () => { pacman.dx = 0; pacman.dy = 1; });
+        controls.left.addEventListener('click', () => { pacman.dx = -1; pacman.dy = 0; });
+        controls.right.addEventListener('click', () => { pacman.dx = 1; pacman.dy = 0; });
+
+        gameLoop();
+    </script>
+</body>
+</html>
